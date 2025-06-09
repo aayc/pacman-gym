@@ -2,6 +2,8 @@
 
 A multi-agent reinforcement learning environment where Pacman competes against Ghosts using PPO (Proximal Policy Optimization).
 
+![Console Screenshot](images/console.png)
+
 ## 🎮 Game Description
 
 - **1 Pacman** vs **2 Ghosts** in a maze environment

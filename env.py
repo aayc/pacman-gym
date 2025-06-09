@@ -129,63 +129,123 @@ class PacmanEnv(gym.Env):
         self.cell_size = 20
         
     def _create_maze(self) -> np.ndarray:
-        """Create a fixed Pacman-style maze with guaranteed connectivity."""
-        maze = np.zeros((self.maze_height, self.maze_width), dtype=int)
+        """Create a Pacman-style maze with proper layout."""
+        maze = np.ones((self.maze_height, self.maze_width), dtype=int)  # Start with all walls
         
-        # Create border walls
-        maze[0, :] = 1  # Top wall
-        maze[-1, :] = 1  # Bottom wall
-        maze[:, 0] = 1  # Left wall
-        maze[:, -1] = 1  # Right wall
+        # Create the basic structure - clear everything first then add walls strategically
+        maze[1:-1, 1:-1] = 0  # Clear interior, keep borders as walls
         
-        # Create a fixed maze pattern that guarantees connectivity
-        # This creates a classic Pacman-like layout
+        # Create a symmetric Pacman-like layout
+        mid_x = self.maze_width // 2
+        mid_y = self.maze_height // 2
         
-        # Horizontal corridors at regular intervals
-        for y in [3, 6, 9, 12, 15, 18]:
-            if y < self.maze_height:
+        # Horizontal corridors - main pathways
+        main_corridors_y = [
+            3,                    # Top corridor
+            mid_y,                # Center corridor 
+            self.maze_height - 4  # Bottom corridor
+        ]
+        
+        for y in main_corridors_y:
+            if 1 <= y < self.maze_height - 1:
                 maze[y, 1:-1] = 0  # Clear horizontal paths
         
-        # Vertical corridors at regular intervals  
-        for x in [3, 6, 9, 12, 15]:
-            if x < self.maze_width:
+        # Vertical connectors
+        connector_xs = [
+            3,                   # Left side
+            mid_x,               # Center
+            self.maze_width - 4  # Right side
+        ]
+        
+        for x in connector_xs:
+            if 1 <= x < self.maze_width - 1:
                 maze[1:-1, x] = 0  # Clear vertical paths
         
-        # Add some strategic walls for interesting gameplay
-        wall_patterns = [
-            # Corner blocks
-            (2, 2), (2, self.maze_width-3),
-            (self.maze_height-3, 2), (self.maze_height-3, self.maze_width-3),
+        # Add wall blocks - classic Pacman obstacles
+        wall_blocks = []
+        
+        # Corner blocks (scaled to current size)
+        if self.maze_width >= 15 and self.maze_height >= 15:
+            # Top corners
+            wall_blocks.extend([
+                (2, 2, 4, 4),     # Top-left
+                (2, self.maze_width-5, 4, self.maze_width-3),  # Top-right
+            ])
             
-            # Central obstacles (if space allows)
-            (self.maze_height//2, self.maze_width//2),
-            (self.maze_height//2-1, self.maze_width//2),
-            (self.maze_height//2+1, self.maze_width//2),
+            # Bottom corners  
+            wall_blocks.extend([
+                (self.maze_height-5, 2, self.maze_height-3, 4),  # Bottom-left
+                (self.maze_height-5, self.maze_width-5, self.maze_height-3, self.maze_width-3),  # Bottom-right
+            ])
+        
+        # Central area obstacles
+        if self.maze_width >= 10 and self.maze_height >= 10:
+            # Central chamber (ghost house)
+            ghost_house_size = min(4, self.maze_width // 5)
+            wall_blocks.append((
+                mid_y - ghost_house_size//2, 
+                mid_x - ghost_house_size//2,
+                mid_y + ghost_house_size//2,
+                mid_x + ghost_house_size//2
+            ))
             
             # Side obstacles
-            (5, 8), (8, 5), (8, self.maze_width-6), (self.maze_height-6, 8),
-        ]
+            side_size = max(2, self.maze_width // 8)
+            wall_blocks.extend([
+                # Left side obstacles
+                (mid_y - 3, 5, mid_y - 1, 5 + side_size),
+                (mid_y + 1, 5, mid_y + 3, 5 + side_size),
+                
+                # Right side obstacles  
+                (mid_y - 3, self.maze_width - 5 - side_size, mid_y - 1, self.maze_width - 5),
+                (mid_y + 1, self.maze_width - 5 - side_size, mid_y + 3, self.maze_width - 5),
+            ])
         
-        for y, x in wall_patterns:
-            if (1 < y < self.maze_height-1 and 1 < x < self.maze_width-1 and
-                y < self.maze_height and x < self.maze_width):
-                maze[y, x] = 1
-        
-        # Ensure key areas remain clear
-        key_clear_areas = [
-            # Spawn areas
-            (1, 1), (1, 2), (2, 1),  # Top-left spawn
-            (self.maze_height-2, self.maze_width-2), 
-            (self.maze_height-2, self.maze_width-3),
-            (self.maze_height-3, self.maze_width-2),  # Bottom-right spawn
+        # Place wall blocks
+        for y1, x1, y2, x2 in wall_blocks:
+            # Clamp to valid bounds
+            y1 = max(1, min(y1, self.maze_height - 2))
+            y2 = max(1, min(y2, self.maze_height - 2))
+            x1 = max(1, min(x1, self.maze_width - 2))
+            x2 = max(1, min(x2, self.maze_width - 2))
             
-            # Center area
-            (self.maze_height//2, self.maze_width//2-1),
-            (self.maze_height//2, self.maze_width//2+1),
+            if y1 <= y2 and x1 <= x2:
+                maze[y1:y2+1, x1:x2+1] = 1
+        
+        # Ensure borders are walls
+        maze[0, :] = 1
+        maze[-1, :] = 1
+        maze[:, 0] = 1
+        maze[:, -1] = 1
+        
+        # Create side tunnels (classic Pacman feature)
+        tunnel_y = mid_y
+        if 0 < tunnel_y < self.maze_height - 1:
+            maze[tunnel_y, 0] = 0   # Left tunnel
+            maze[tunnel_y, -1] = 0  # Right tunnel
+        
+        # Ensure key spawn areas are always clear
+        spawn_clearances = [
+            # Pacman spawn area (bottom center)
+            (self.maze_height - 3, mid_x),
+            (self.maze_height - 2, mid_x),
+            (self.maze_height - 4, mid_x),
+            
+            # Ghost spawn areas (around center)
+            (mid_y, mid_x - 1),
+            (mid_y, mid_x + 1),
+            (mid_y - 1, mid_x),
+            (mid_y + 1, mid_x),
+            
+            # Ensure connectivity around center
+            (mid_y, mid_x - 3),
+            (mid_y, mid_x + 3),
+            (mid_y - 3, mid_x),
+            (mid_y + 3, mid_x),
         ]
         
-        for y, x in key_clear_areas:
-            if 0 <= y < self.maze_height and 0 <= x < self.maze_width:
+        for y, x in spawn_clearances:
+            if 0 < y < self.maze_height - 1 and 0 < x < self.maze_width - 1:
                 maze[y, x] = 0
         
         return maze

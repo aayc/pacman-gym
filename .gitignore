@@ -202,11 +202,6 @@ interrupted_models.pth
 quick_trained_models.pth
 
 # Training plots and visualizations
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.pdf
 training_*.png
 pacman_training_results.png
 loss_plots.png

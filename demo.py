@@ -13,7 +13,7 @@ from train import PacmanPPOAgent
 
 def load_trained_pacman_agents(model_path: str, device: torch.device) -> Tuple[PacmanPPOAgent, List[PacmanPPOAgent]]:
     """Load trained Pacman agents from checkpoint."""
-    checkpoint = torch.load(model_path, map_location=device)
+    checkpoint = torch.load(model_path, map_location=device, weights_only=False)
     
     # Create agents with same architecture as training
     pacman_agent = PacmanPPOAgent(obs_size=47, action_size=5, hidden_size=256).to(device)
@@ -108,6 +108,9 @@ def main() -> int:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
+    # Initialize env to None for proper cleanup
+    env = None
+    
     try:
         # Load trained agents
         print(f"Loading trained Pacman agents from {args.model}...")
@@ -180,7 +183,8 @@ def main() -> int:
         return 1
     
     finally:
-        env.close()
+        if env is not None:
+            env.close()
     
     return 0
 

@@ -525,7 +525,7 @@ class PacmanPPOTrainer:
     
     def load_models(self, filename: str) -> int:
         """Load all models and training state."""
-        checkpoint = torch.load(filename, map_location=self.device)
+        checkpoint = torch.load(filename, map_location=self.device, weights_only=False)
         
         # Load model states
         self.pacman_agent.load_state_dict(checkpoint['pacman_agent_state_dict'])
