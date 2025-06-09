@@ -27,6 +27,14 @@ class Pacman:
         self.speed = 1  # Grid-based movement
         self.pellets_eaten = 0
         
+        # Animation and movement
+        self.visual_x = float(x)  # Smooth interpolated position
+        self.visual_y = float(y)
+        self.target_x = x  # Target grid position
+        self.target_y = y
+        self.last_direction = ActionType.STAY
+        self.animation_progress = 1.0  # 0.0 to 1.0, 1.0 = at target
+        
     def get_position(self) -> Tuple[int, int]:
         return (self.x, self.y)
     
@@ -45,12 +53,41 @@ class Pacman:
         
         # Check if new position is not a wall
         if maze[new_y, new_x] != 1:  # 1 = wall
+            # Update grid position and animation targets
             self.x, self.y = new_x, new_y
+            self.target_x, self.target_y = new_x, new_y
+            self.animation_progress = 0.0  # Start new animation
+            
+            # Track direction for sprite orientation
+            if action != ActionType.STAY:
+                self.last_direction = action
     
     def eat_pellet(self, points: int = 10) -> None:
         """Eat a pellet and gain points."""
         self.score += points
         self.pellets_eaten += 1
+    
+    def update_animation(self, dt: float = 0.1) -> None:
+        """Update smooth movement animation."""
+        if self.animation_progress < 1.0:
+            # Animation speed - higher values = faster animation
+            animation_speed = 8.0
+            self.animation_progress = min(1.0, self.animation_progress + animation_speed * dt)
+            
+            # Interpolate visual position
+            start_x = self.target_x - (self.target_x - self.visual_x) / (1.0 if self.animation_progress == 0 else self.animation_progress)
+            start_y = self.target_y - (self.target_y - self.visual_y) / (1.0 if self.animation_progress == 0 else self.animation_progress)
+            
+            # Use easing for smoother animation
+            t = self.animation_progress
+            eased_t = t * t * (3.0 - 2.0 * t)  # Smoothstep
+            
+            self.visual_x = start_x + (self.target_x - start_x) * eased_t
+            self.visual_y = start_y + (self.target_y - start_y) * eased_t
+        else:
+            # Animation complete
+            self.visual_x = float(self.target_x)
+            self.visual_y = float(self.target_y)
 
 class Ghost:
     def __init__(self, x: int, y: int, ghost_id: int) -> None:
@@ -64,6 +101,14 @@ class Ghost:
         # Ghost colors for rendering
         self.colors = [(255, 0, 0), (255, 184, 255), (0, 255, 255), (255, 184, 82)]
         self.color = self.colors[ghost_id % len(self.colors)]
+        
+        # Animation and movement
+        self.visual_x = float(x)  # Smooth interpolated position
+        self.visual_y = float(y)
+        self.target_x = x  # Target grid position
+        self.target_y = y
+        self.last_direction = ActionType.STAY
+        self.animation_progress = 1.0  # 0.0 to 1.0, 1.0 = at target
     
     def get_position(self) -> Tuple[int, int]:
         return (self.x, self.y)
@@ -83,7 +128,36 @@ class Ghost:
         
         # Check if new position is not a wall
         if maze[new_y, new_x] != 1:  # 1 = wall
+            # Update grid position and animation targets
             self.x, self.y = new_x, new_y
+            self.target_x, self.target_y = new_x, new_y
+            self.animation_progress = 0.0  # Start new animation
+            
+            # Track direction for sprite orientation
+            if action != ActionType.STAY:
+                self.last_direction = action
+    
+    def update_animation(self, dt: float = 0.1) -> None:
+        """Update smooth movement animation."""
+        if self.animation_progress < 1.0:
+            # Animation speed - higher values = faster animation
+            animation_speed = 8.0
+            self.animation_progress = min(1.0, self.animation_progress + animation_speed * dt)
+            
+            # Interpolate visual position
+            start_x = self.target_x - (self.target_x - self.visual_x) / (1.0 if self.animation_progress == 0 else self.animation_progress)
+            start_y = self.target_y - (self.target_y - self.visual_y) / (1.0 if self.animation_progress == 0 else self.animation_progress)
+            
+            # Use easing for smoother animation
+            t = self.animation_progress
+            eased_t = t * t * (3.0 - 2.0 * t)  # Smoothstep
+            
+            self.visual_x = start_x + (self.target_x - start_x) * eased_t
+            self.visual_y = start_y + (self.target_y - start_y) * eased_t
+        else:
+            # Animation complete
+            self.visual_x = float(self.target_x)
+            self.visual_y = float(self.target_y)
 
 class PacmanEnv(gym.Env):
     def __init__(self, maze_width: int = 19, maze_height: int = 21) -> None:
@@ -541,35 +615,104 @@ class PacmanEnv(gym.Env):
                         )
                         pygame.draw.circle(self.screen, (255, 255, 0), pellet_center, 2)
         
-        # Draw Pacman
+        # Update animations
+        self.pacman.update_animation()
+        for ghost in self.ghosts:
+            ghost.update_animation()
+        
+        # Draw Pacman with smooth animation and direction
         if self.pacman.alive:
             pacman_center = (
-                self.pacman.x * self.cell_size + self.cell_size // 2,
-                self.pacman.y * self.cell_size + self.cell_size // 2
+                int(self.pacman.visual_x * self.cell_size + self.cell_size // 2),
+                int(self.pacman.visual_y * self.cell_size + self.cell_size // 2)
             )
+            
+            # Draw Pacman body
             pygame.draw.circle(self.screen, (255, 255, 0), pacman_center, self.cell_size // 3)
             
-            # Draw Pacman "mouth" (simple line)
-            mouth_end = (
-                pacman_center[0] + self.cell_size // 4,
-                pacman_center[1]
-            )
-            pygame.draw.line(self.screen, (0, 0, 0), pacman_center, mouth_end, 2)
+            # Draw directional mouth based on last direction
+            mouth_size = self.cell_size // 4
+            if self.pacman.last_direction == ActionType.RIGHT:
+                # Mouth facing right
+                mouth_points = [
+                    pacman_center,
+                    (pacman_center[0] + mouth_size, pacman_center[1] - mouth_size // 2),
+                    (pacman_center[0] + mouth_size, pacman_center[1] + mouth_size // 2)
+                ]
+            elif self.pacman.last_direction == ActionType.LEFT:
+                # Mouth facing left
+                mouth_points = [
+                    pacman_center,
+                    (pacman_center[0] - mouth_size, pacman_center[1] - mouth_size // 2),
+                    (pacman_center[0] - mouth_size, pacman_center[1] + mouth_size // 2)
+                ]
+            elif self.pacman.last_direction == ActionType.UP:
+                # Mouth facing up
+                mouth_points = [
+                    pacman_center,
+                    (pacman_center[0] - mouth_size // 2, pacman_center[1] - mouth_size),
+                    (pacman_center[0] + mouth_size // 2, pacman_center[1] - mouth_size)
+                ]
+            elif self.pacman.last_direction == ActionType.DOWN:
+                # Mouth facing down
+                mouth_points = [
+                    pacman_center,
+                    (pacman_center[0] - mouth_size // 2, pacman_center[1] + mouth_size),
+                    (pacman_center[0] + mouth_size // 2, pacman_center[1] + mouth_size)
+                ]
+            else:
+                # Default mouth (right)
+                mouth_points = [
+                    pacman_center,
+                    (pacman_center[0] + mouth_size, pacman_center[1] - mouth_size // 2),
+                    (pacman_center[0] + mouth_size, pacman_center[1] + mouth_size // 2)
+                ]
+            
+            # Draw the mouth
+            pygame.draw.polygon(self.screen, (0, 0, 0), mouth_points)
         
-        # Draw Ghosts
+        # Draw Ghosts with smooth animation and direction
         for ghost in self.ghosts:
             ghost_center = (
-                ghost.x * self.cell_size + self.cell_size // 2,
-                ghost.y * self.cell_size + self.cell_size // 2
+                int(ghost.visual_x * self.cell_size + self.cell_size // 2),
+                int(ghost.visual_y * self.cell_size + self.cell_size // 2)
             )
+            
+            # Draw ghost body
             pygame.draw.circle(self.screen, ghost.color, ghost_center, self.cell_size // 3)
             
-            # Draw ghost eyes
+            # Draw ghost eyes based on direction
             eye_size = 2
-            left_eye = (ghost_center[0] - 4, ghost_center[1] - 2)
-            right_eye = (ghost_center[0] + 4, ghost_center[1] - 2)
+            eye_offset = 3
+            
+            if ghost.last_direction == ActionType.LEFT:
+                # Eyes looking left
+                left_eye = (ghost_center[0] - eye_offset - 1, ghost_center[1] - 2)
+                right_eye = (ghost_center[0] + eye_offset - 1, ghost_center[1] - 2)
+            elif ghost.last_direction == ActionType.RIGHT:
+                # Eyes looking right
+                left_eye = (ghost_center[0] - eye_offset + 1, ghost_center[1] - 2)
+                right_eye = (ghost_center[0] + eye_offset + 1, ghost_center[1] - 2)
+            elif ghost.last_direction == ActionType.UP:
+                # Eyes looking up
+                left_eye = (ghost_center[0] - eye_offset, ghost_center[1] - 3)
+                right_eye = (ghost_center[0] + eye_offset, ghost_center[1] - 3)
+            elif ghost.last_direction == ActionType.DOWN:
+                # Eyes looking down
+                left_eye = (ghost_center[0] - eye_offset, ghost_center[1] - 1)
+                right_eye = (ghost_center[0] + eye_offset, ghost_center[1] - 1)
+            else:
+                # Default eyes (center)
+                left_eye = (ghost_center[0] - eye_offset, ghost_center[1] - 2)
+                right_eye = (ghost_center[0] + eye_offset, ghost_center[1] - 2)
+            
+            # Draw white eye background
             pygame.draw.circle(self.screen, (255, 255, 255), left_eye, eye_size)
             pygame.draw.circle(self.screen, (255, 255, 255), right_eye, eye_size)
+            
+            # Draw black pupils
+            pygame.draw.circle(self.screen, (0, 0, 0), left_eye, eye_size - 1)
+            pygame.draw.circle(self.screen, (0, 0, 0), right_eye, eye_size - 1)
         
         # Draw UI information
         if pygame.font.get_init():

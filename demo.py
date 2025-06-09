@@ -34,7 +34,7 @@ def load_trained_pacman_agents(model_path: str, device: torch.device) -> Tuple[P
     
     return pacman_agent, ghost_agents
 
-def run_pacman_demo_episode(env: PacmanEnv, pacman_agent: PacmanPPOAgent, ghost_agents: List[PacmanPPOAgent], device: torch.device, max_steps: int = 2000) -> Tuple[List[float], int]:
+def run_pacman_demo_episode(env: PacmanEnv, pacman_agent: PacmanPPOAgent, ghost_agents: List[PacmanPPOAgent], device: torch.device, max_steps: int = 2000, speed: float = 0.1) -> Tuple[List[float], int]:
     """Run a single demo episode with trained agents."""
     obs, _ = env.reset()
     episode_rewards = [0.0, 0.0, 0.0]
@@ -66,7 +66,7 @@ def run_pacman_demo_episode(env: PacmanEnv, pacman_agent: PacmanPPOAgent, ghost_
         
         # Render
         env.render()
-        time.sleep(0.1)  # Slower for better visibility
+        time.sleep(speed)  # Use configurable speed
         
         # Print status every 100 steps
         if step_count % 100 == 0:
@@ -135,7 +135,7 @@ def main() -> int:
             print(f"\n🟡 Episode {episode + 1}/{args.episodes}")
             
             try:
-                episode_rewards, steps = run_pacman_demo_episode(env, pacman_agent, ghost_agents, device)
+                episode_rewards, steps = run_pacman_demo_episode(env, pacman_agent, ghost_agents, device, speed=args.speed)
                 
                 total_rewards[0] += episode_rewards[0]
                 total_rewards[1] += episode_rewards[1]
