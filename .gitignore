@@ -1,0 +1,403 @@
+# 🟡 Pacman RL Project .gitignore
+
+# =============================================================================
+# PYTHON
+# =============================================================================
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# poetry
+poetry.lock
+
+# pdm
+.pdm.toml
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# PyCharm
+.idea/
+
+# =============================================================================
+# MACHINE LEARNING & AI
+# =============================================================================
+
+# PyTorch model files
+*.pth
+*.pt
+*.ckpt
+*.pkl
+*.pickle
+
+# TensorBoard logs
+runs/
+logs/
+tensorboard/
+tb_logs/
+
+# Weights & Biases
+wandb/
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# Experiment tracking
+experiments/
+checkpoints/
+saved_models/
+
+# Data files
+data/
+datasets/
+*.csv
+*.json
+*.jsonl
+*.parquet
+*.h5
+*.hdf5
+
+# Training outputs
+results/
+outputs/
+models/
+weights/
+
+# =============================================================================
+# REINFORCEMENT LEARNING SPECIFIC
+# =============================================================================
+
+# Training checkpoints and models
+*_models.pth
+models_*.pth
+checkpoint_*.pth
+final_models.pth
+interrupted_models.pth
+quick_trained_models.pth
+
+# Training plots and visualizations
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.pdf
+training_*.png
+pacman_training_results.png
+loss_plots.png
+reward_plots.png
+
+# Training logs and statistics
+training_log.txt
+stats.json
+episode_rewards.txt
+training_history.csv
+
+# Replay buffers and trajectories
+replay_buffer/
+trajectories/
+*.npz
+
+# Environment recordings
+recordings/
+videos/
+replays/
+
+# =============================================================================
+# PYGAME & GRAPHICS
+# =============================================================================
+
+# Pygame temp files
+pygame_icon.png
+
+# Screenshots and captures
+screenshots/
+captures/
+*.bmp
+
+# =============================================================================
+# DEVELOPMENT & IDE
+# =============================================================================
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# =============================================================================
+# SYSTEM FILES
+# =============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.tmp
+*.temp
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# =============================================================================
+# PROJECT SPECIFIC
+# =============================================================================
+
+# Pacman RL specific files to ignore
+temp_models/
+debug_models/
+test_outputs/
+benchmark_results/
+analysis/
+profiling/
+
+# Configuration files with sensitive data
+config_local.py
+secrets.py
+.secrets
+api_keys.txt
+
+# Large data files
+large_datasets/
+pretrained_models/
+cached_data/
+
+# Temporary experiment files
+temp_*.py
+scratch_*.py
+debug_*.py
+test_script_*.py
+
+# Backup files
+*.bak
+*.backup
+*_backup.*
+*_old.*
+
+# Output directories
+output/
+results/
+plots/
+figures/
+
+# =============================================================================
+# CLOUD & DEPLOYMENT
+# =============================================================================
+
+# Docker
+.dockerignore
+Dockerfile.local
+
+# Kubernetes
+*.yaml.local
+*.yml.local
+
+# Terraform
+*.tfstate
+*.tfstate.backup
+.terraform/
+
+# AWS
+.aws/
+
+# Google Cloud
+.gcloud/
+service-account-*.json
+
+# Azure
+.azure/
+
+# =============================================================================
+# MISC
+# =============================================================================
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Logs
+*.log
+*.out
+*.err
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+.temp/
