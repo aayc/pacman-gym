@@ -17,36 +17,43 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from torch.distributions import Categorical
+from torch.cuda.amp import autocast, GradScaler  # Added for mixed precision
 
 from env import PacmanEnv
 
 
 class PacmanPPOAgent(nn.Module):
     def __init__(
-        self, obs_size: int = 47, action_size: int = 5, hidden_size: int = 256
+        self, obs_size: int = 47, action_size: int = 5, hidden_size: int = 512
     ) -> None:
         super(PacmanPPOAgent, self).__init__()
 
-        # Larger, simpler feature extractor
+        # Larger, deeper feature extractor for better GPU utilization
         self.feature_extractor = nn.Sequential(
             nn.Linear(obs_size, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU(),
         )
 
-        # Actor head (policy) - simpler
+        # Actor head (policy) - larger
         self.actor = nn.Sequential(
             nn.Linear(hidden_size, hidden_size // 2),
             nn.ReLU(),
-            nn.Linear(hidden_size // 2, action_size),
+            nn.Linear(hidden_size // 2, hidden_size // 4),
+            nn.ReLU(),
+            nn.Linear(hidden_size // 4, action_size),
         )
 
-        # Critic head (value function) - simpler
+        # Critic head (value function) - larger
         self.critic = nn.Sequential(
             nn.Linear(hidden_size, hidden_size // 2),
             nn.ReLU(),
-            nn.Linear(hidden_size // 2, 1),
+            nn.Linear(hidden_size // 2, hidden_size // 4),
+            nn.ReLU(),
+            nn.Linear(hidden_size // 4, 1),
         )
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -71,16 +78,18 @@ class PacmanPPOTrainer:
     def __init__(
         self,
         env: PacmanEnv,
-        learning_rate: float = 1e-3,
+        learning_rate: float = 2e-4,  # Slightly lower for stability with larger batches
         gamma: float = 0.99,
         lambda_gae: float = 0.95,
         clip_epsilon: float = 0.2,
-        epochs_per_update: int = 4,
-        batch_size: int = 256,
+        epochs_per_update: int = 10,  # Increased from 4 to better utilize data
+        batch_size: int = 1024,  # Increased from 256 for better GPU utilization
         value_loss_coef: float = 0.5,
-        entropy_coef: float = 0.05,
+        entropy_coef: float = 0.01,  # Reduced slightly for more focused learning
         render: bool = False,
         render_freq: int = 1,
+        num_envs: int = 1,  # Added for potential future parallel environments
+        hidden_size: int = 512,  # Added configurable hidden size
     ) -> None:
         self.env = env
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -92,12 +101,12 @@ class PacmanPPOTrainer:
         self.action_size = env.action_space.nvec[0]  # Actions per agent
         self.num_agents = obs_shape[0]  # Total agents (Pacman + Ghosts)
 
-        # Create agents (Pacman + 2 Ghosts)
-        self.pacman_agent = PacmanPPOAgent(self.obs_size, self.action_size).to(
+        # Create agents (Pacman + 2 Ghosts) with configurable hidden size
+        self.pacman_agent = PacmanPPOAgent(self.obs_size, self.action_size, hidden_size).to(
             self.device
         )
         self.ghost_agents = [
-            PacmanPPOAgent(self.obs_size, self.action_size).to(self.device)
+            PacmanPPOAgent(self.obs_size, self.action_size, hidden_size).to(self.device)
             for _ in range(self.num_agents - 1)
         ]
 
@@ -109,6 +118,12 @@ class PacmanPPOTrainer:
             optim.Adam(agent.parameters(), lr=learning_rate)
             for agent in self.ghost_agents
         ]
+
+        # Mixed precision training for better GPU utilization
+        self.use_amp = torch.cuda.is_available()
+        if self.use_amp:
+            self.scaler = GradScaler()
+            print("Using mixed precision training for better GPU utilization")
 
         # Hyperparameters
         self.gamma = gamma
@@ -353,30 +368,57 @@ class PacmanPPOTrainer:
                 batch_advantages = advantages[batch_indices]
                 batch_returns = returns[batch_indices]
 
-                # Forward pass
-                _, new_log_probs, entropy, values = agent.get_action_and_value(
-                    batch_obs, batch_actions
-                )
+                # Forward pass with mixed precision
+                if self.use_amp:
+                    with autocast():
+                        _, new_log_probs, entropy, values = agent.get_action_and_value(
+                            batch_obs, batch_actions
+                        )
 
-                # Compute ratios
-                ratios = torch.exp(new_log_probs - batch_old_log_probs)
+                        # Compute ratios
+                        ratios = torch.exp(new_log_probs - batch_old_log_probs)
 
-                # Compute losses
-                surr1 = ratios * batch_advantages
-                surr2 = (
-                    torch.clamp(ratios, 1 - self.clip_epsilon, 1 + self.clip_epsilon)
-                    * batch_advantages
-                )
-                actor_loss = -torch.min(surr1, surr2).mean()
+                        # Compute losses
+                        surr1 = ratios * batch_advantages
+                        surr2 = (
+                            torch.clamp(ratios, 1 - self.clip_epsilon, 1 + self.clip_epsilon)
+                            * batch_advantages
+                        )
+                        actor_loss = -torch.min(surr1, surr2).mean()
 
-                value_loss = F.mse_loss(values.flatten(), batch_returns)
-                entropy_loss = -entropy.mean()
+                        value_loss = F.mse_loss(values.flatten(), batch_returns)
+                        entropy_loss = -entropy.mean()
 
-                total_loss = (
-                    actor_loss
-                    + self.value_loss_coef * value_loss
-                    + self.entropy_coef * entropy_loss
-                )
+                        total_loss = (
+                            actor_loss
+                            + self.value_loss_coef * value_loss
+                            + self.entropy_coef * entropy_loss
+                        )
+                else:
+                    # Forward pass
+                    _, new_log_probs, entropy, values = agent.get_action_and_value(
+                        batch_obs, batch_actions
+                    )
+
+                    # Compute ratios
+                    ratios = torch.exp(new_log_probs - batch_old_log_probs)
+
+                    # Compute losses
+                    surr1 = ratios * batch_advantages
+                    surr2 = (
+                        torch.clamp(ratios, 1 - self.clip_epsilon, 1 + self.clip_epsilon)
+                        * batch_advantages
+                    )
+                    actor_loss = -torch.min(surr1, surr2).mean()
+
+                    value_loss = F.mse_loss(values.flatten(), batch_returns)
+                    entropy_loss = -entropy.mean()
+
+                    total_loss = (
+                        actor_loss
+                        + self.value_loss_coef * value_loss
+                        + self.entropy_coef * entropy_loss
+                    )
 
                 # Collect statistics
                 epoch_stats["actor_loss"].append(actor_loss.item())
@@ -385,11 +427,18 @@ class PacmanPPOTrainer:
                 epoch_stats["policy_ratio"].append(ratios.mean().item())
                 epoch_stats["value_estimate"].append(values.mean().item())
 
-                # Backward pass
+                # Backward pass with mixed precision
                 optimizer.zero_grad()
-                total_loss.backward()
-                torch.nn.utils.clip_grad_norm_(agent.parameters(), 0.5)
-                optimizer.step()
+                if self.use_amp:
+                    self.scaler.scale(total_loss).backward()
+                    self.scaler.unscale_(optimizer)
+                    torch.nn.utils.clip_grad_norm_(agent.parameters(), 0.5)
+                    self.scaler.step(optimizer)
+                    self.scaler.update()
+                else:
+                    total_loss.backward()
+                    torch.nn.utils.clip_grad_norm_(agent.parameters(), 0.5)
+                    optimizer.step()
 
         # Compute explained variance
         explained_var = 1 - torch.var(returns - all_values) / (
@@ -566,7 +615,7 @@ class PacmanPPOTrainer:
     def train(
         self,
         total_timesteps: int = 500000,
-        update_frequency: int = 1024,
+        update_frequency: int = 4096,
         save_frequency: int = 50000,
         resume_from: int = 0,
     ) -> Tuple[List[List[float]], List[float], List[int]]:
@@ -860,14 +909,26 @@ if __name__ == "__main__":
         default=None,
         help="Resume training from checkpoint (e.g., models_timestep_100000.pth)",
     )
+    parser.add_argument(
+        "--batch-size", type=int, default=1024, help="Training batch size"
+    )
+    parser.add_argument(
+        "--update-freq", type=int, default=4096, help="Steps before policy update"
+    )
+    parser.add_argument(
+        "--hidden-size", type=int, default=512, help="Neural network hidden size"
+    )
 
     args = parser.parse_args()
 
     print("=" * 60)
-    print("🟡 PPO PACMAN TRAINING")
+    print("🟡 PPO PACMAN TRAINING (GPU OPTIMIZED)")
     print("=" * 60)
     print(f"Training timesteps: {args.timesteps:,}")
     print(f"Maze size: {args.maze_width}x{args.maze_height}")
+    print(f"Batch size: {args.batch_size} (optimized for GPU)")
+    print(f"Update frequency: {args.update_freq} steps")
+    print(f"Network hidden size: {args.hidden_size}")
     if args.show:
         print(
             f"Rendering enabled (every {args.render_freq} episode{'s' if args.render_freq != 1 else ''})"
@@ -882,8 +943,15 @@ if __name__ == "__main__":
     # Create environment
     env = PacmanEnv(maze_width=args.maze_width, maze_height=args.maze_height)
 
-    # Create trainer
-    trainer = PacmanPPOTrainer(env, render=args.show, render_freq=args.render_freq)
+    # Create trainer with optimized parameters
+    trainer = PacmanPPOTrainer(
+        env, 
+        render=args.show, 
+        render_freq=args.render_freq,
+        batch_size=args.batch_size,
+        epochs_per_update=10,  # Increased for better GPU utilization
+        hidden_size=args.hidden_size,
+    )
 
     # Handle resuming from checkpoint
     resume_timesteps = 0
@@ -897,9 +965,11 @@ if __name__ == "__main__":
             print(f"❌ Error loading checkpoint: {e}. Starting fresh.")
 
     try:
-        # Train agents
+        # Train agents with optimized parameters
         episode_rewards, pacman_scores, pellets_collected = trainer.train(
-            total_timesteps=args.timesteps, resume_from=resume_timesteps
+            total_timesteps=args.timesteps, 
+            update_frequency=args.update_freq,
+            resume_from=resume_timesteps
         )
 
         # Plot results
