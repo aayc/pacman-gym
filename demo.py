@@ -20,12 +20,12 @@ def load_trained_pacman_agents(
     checkpoint = torch.load(model_path, map_location=device, weights_only=False)
 
     # Create agents with same architecture as training
-    pacman_agent = PacmanPPOAgent(obs_size=47, action_size=5, hidden_size=256).to(
+    pacman_agent = PacmanPPOAgent(obs_size=47, action_size=5, hidden_size=512).to(
         device
     )
     ghost_agents = [
-        PacmanPPOAgent(obs_size=47, action_size=5, hidden_size=256).to(device),
-        PacmanPPOAgent(obs_size=47, action_size=5, hidden_size=256).to(device),
+        PacmanPPOAgent(obs_size=47, action_size=5, hidden_size=512).to(device),
+        PacmanPPOAgent(obs_size=47, action_size=5, hidden_size=512).to(device),
     ]
 
     # Load trained weights
